@@ -1,0 +1,27 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "opencode-go/deepseek-v4-flash",
+  "mcp": {
+    "memory": {
+      "type": "local",
+      "command": ["{{PYTHON_CMD}}", "{{MCP_MEMORY_PATH}}"]
+    }
+  },
+  "skills": {
+    "paths": ["{{SKILLS_PATH}}"]
+  },
+  "command": {
+    "save": {
+      "template": "Save the current session to ChromaDB memory.\n\nExecute {{PYTHON_CMD}} ~/.shokunin/scripts/chroma-helper.py session list 3 to see recent sessions.\n\nThen save this session with a properly structured session_end entry:\n\n{{PYTHON_CMD}} ~/.shokunin/scripts/chroma-helper.py save \"SESSION SUMMARY\n\n## Decisions\n- (list 3-7 key decisions made this session)\n\n## Files\n- (list 3-7 files modified with what changed)\n\n## Commands\n- (list 3-5 important commands executed)\n\n## Architecture\n- (any architectural insights or patterns used)\" \"session-$(date +%Y%m%d-%H%M%S)\" \"session_end\" \"session-end,shokunin\" \"shokunin\"\n\nSummarize the output for the user showing what was saved.",
+      "description": "Save current session to ChromaDB memory with structured context"
+    },
+    "load": {
+      "template": "Load context from a previous session.\n\nFirst list recent sessions:\n{{PYTHON_CMD}} ~/.shokunin/scripts/chroma-helper.py session list 5\n\nShow the list to the user and ask which session to continue (by number).\nIf user picks a session, load it:\n{{PYTHON_CMD}} ~/.shokunin/scripts/chroma-helper.py session continue <session_id>\n\nPrint the decisions, files, commands found along with entry count.",
+      "description": "List recent sessions and load context from a chosen one"
+    },
+    "status": {
+      "template": "Run a Shokunin ecosystem healthcheck.\n\nCheck memory:\n{{PYTHON_CMD}} ~/.shokunin/scripts/chroma-helper.py count\n\nCheck ChromaDB:\n{{PYTHON_CMD}} -c \"import chromadb; print('ChromaDB OK')\"\n\nList skills:\nls ~/.config/opencode/skills/\n\nSummarize results.",
+      "description": "Check Shokunin ecosystem status"
+    }
+  }
+}
