@@ -8,6 +8,8 @@
 [![OpenCode](https://img.shields.io/badge/OpenCode-1.15-6B46C1?logo=openai)](https://opencode.ai)
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/EliasOulkadi/shokunin/graphs/commit-activity)
 
+> **Note**: This is a fork I call shokunin-lite. It's much simplier fork. It just installs memeory and few skills. For my own usecase right now.
+
 **Persistent AI memory for developers.** 62 skills, multi-strategy recall (vector + BM25 + temporal), ChromaDB memory, MCP servers, declarative self-updates. Zero servers, zero API costs, fully offline.
 
 > *職人 (shokunin) means artisan in Japanese. These skills aim for that standard: every detail crafted, every edge case handled, every workflow automated.*
