@@ -16,6 +16,7 @@
 | **kubernetes** | Deployments, Gateway API, service mesh (Istio/Linkerd/Cilium), eBPF, security hardening, Helm, HPA, PDB. |
 | **senior-engineer** | Production-grade code standards: readable, correct, maintainable, secure, failure-aware. Always active for any coding task. |
 | **arch-linux-triage** | Arch Linux troubleshooting and system recovery. |
+| **opencode-quota** | Quota sidebar panel + compact status line for OpenCode Go usage tracking. Installed automatically with `/quota`, `/quota_status`, `/tokens_*` slash commands. |
 
 ### cluster-debug (Radar MCP + Konflate MCP)
 
@@ -66,6 +67,8 @@ Or use the install script to get prompted for these URLs.
 
 **OpenCode custom commands:** `/save` (save session to ChromaDB), `/load` (load previous session), `/status` (healthcheck).
 
+**OpenCode Quota commands:** `/quota` (detailed report), `/quota_status` (config diagnostics), `/quota_announcements` (maintainer notices), `/tokens_today`, `/tokens_weekly`, `/tokens_monthly`, `/tokens_session` (token usage reports).
+
 **Linux:**
 ```bash
 opencode                              # Start AI session (with memory capture)
@@ -101,7 +104,32 @@ The install script will:
 2. Install ChromaDB (persistent memory)
 3. Copy skills from `skills-lite/` to `~/.config/opencode/skills/`
 4. Configure opencode with memory, Radar MCP, and Konflate MCP
-5. Add shell profile integration and weekly maintenance crontab
+5. Install opencode-quota with sidebar panel + compact status line (Node.js 20+ required)
+6. Add shell profile integration and weekly maintenance crontab
+
+### Post-install: OpenCode Go quota tracking
+
+The install script automatically sets up [opencode-quota](https://github.com/slkiser/opencode-quota) with:
+
+- **Sidebar panel** — `Quota` panel in the OpenCode TUI session sidebar
+- **Compact status line** — quota percentage at the home bottom and chat/session prompt
+- **Popup toasts** — quota reminders after idle/question/compact events
+- **Slash commands** — `/quota`, `/quota_status`, `/quota_announcements`, `/tokens_*`
+
+After install, you must set two environment variables for OpenCode Go usage data:
+
+```fish
+# ~/.config/fish/config.fish
+set -gx OPENCODE_GO_WORKSPACE_ID "wrk_01KFRYBAA0N22SYSEG2QF1RG9R"
+set -gx OPENCODE_GO_AUTH_COOKIE "<your-auth-cookie>"
+```
+
+To get the auth cookie:
+1. Open your OpenCode Go dashboard in a browser
+2. Open DevTools → Storage → Cookies
+3. Copy the value of the `auth` cookie
+4. Replace `<your-auth-cookie>` with the actual value
+5. Run `source ~/.config/fish/config.fish` and restart opencode
 
 ### Setup per runtime
 

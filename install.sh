@@ -239,6 +239,75 @@ if [ -n "$NVIDIA_KEY" ] && [ -n "$NVIDIA_PROFILE" ] && ! grep -q "NVIDIA_API_KEY
 fi
 log "Config generated"
 
+# === OPENCODE QUOTA ===
+step_msg "Installing OpenCode Quota plugin..."
+if command -v node &>/dev/null && command -v npm &>/dev/null; then
+    NODE_VER=$(node --version | sed 's/v//' | cut -d. -f1)
+    if [ "$NODE_VER" -ge 20 ]; then
+        if npm install -g @slkiser/opencode-quota --legacy-peer-deps >> "$LOG_FILE" 2>&1; then
+            log "@slkiser/opencode-quota installed"
+            mkdir -p "$CONFIG_DIR/opencode-quota"
+
+            # tui.json — add plugin if present, create if not
+            if [ -f "$CONFIG_DIR/tui.json" ]; then
+                if ! grep -q "opencode-quota" "$CONFIG_DIR/tui.json" 2>/dev/null; then
+                    python3 -c "
+import json
+with open('$CONFIG_DIR/tui.json') as f:
+    cfg = json.load(f)
+if 'plugin' not in cfg:
+    cfg['plugin'] = []
+if '@slkiser/opencode-quota' not in cfg['plugin']:
+    cfg['plugin'].append('@slkiser/opencode-quota')
+with open('$CONFIG_DIR/tui.json', 'w') as f:
+    json.dump(cfg, f, indent=2)
+"
+                    log "tui.json: plugin added"
+                else
+                    log "tui.json: already configured"
+                fi
+            else
+                cat > "$CONFIG_DIR/tui.json" << EOF
+{
+  "\$schema": "https://opencode.ai/tui.json",
+  "plugin": ["@slkiser/opencode-quota"],
+  "theme": "catppuccin"
+}
+EOF
+                log "tui.json: configured"
+            fi
+
+            cat > "$CONFIG_DIR/opencode-quota/quota-toast.json" << EOF
+{
+  "\$schema": "https://opencode.ai/config.json",
+  "enabledProviders": ["opencode-go"],
+  "enableToast": true,
+  "tuiSidebarPanel": {
+    "enabled": true
+  },
+  "tuiCompactStatus": {
+    "enabled": true,
+    "homeBottom": true,
+    "sessionPrompt": true
+  },
+  "maintainerAnnouncements": {
+    "enabled": true,
+    "home": true
+  },
+  "opencodeGoWindows": ["rolling", "weekly", "monthly"]
+}
+EOF
+            log "quota-toast.json: configured"
+        else
+            log "WARNING: npm install @slkiser/opencode-quota failed"
+        fi
+    else
+        log "WARNING: Node.js 20+ required for opencode-quota (found v$NODE_VER). Skipping."
+    fi
+else
+    log "WARNING: Node.js/npm not found. Skipping opencode-quota setup."
+fi
+
 # === CLAUDE.md ===
 step_msg "Configuring global instructions..."
 CLAUDE_SRC="$SCRIPT_DIR/.pack/CLAUDE.md"
@@ -305,6 +374,7 @@ echo "  Skills: $COUNT installed"
 echo "  Memory: ChromaDB in $CORES_DIR/memory"
 echo "  Shell: source ~/.shokunin/scripts/linux/profile.sh"
 echo "  Crontab: Sunday 21:00 (backup + cleanup)"
+echo "  Quota: sidebar panel + compact status line (openCode Go)"
 echo ""
 if [ -n "$RADAR_URL" ] && [ "$RADAR_URL" != "http://localhost:49412/mcp" ]; then
     echo "  Radar MCP: $RADAR_URL"
@@ -317,6 +387,18 @@ echo "  NEXT STEPS:"
 echo "  1. Reload your shell: source ~/.bashrc"
 echo "  2. Start coding: opencode"
 echo "  3. Test memory: ~/.shokunin/scripts/linux/memory-healthcheck.sh"
+echo ""
+echo "  OPENCODE GO QUOTA SETUP:"
+echo "  Add these to your Fish shell config (~/.config/fish/config.fish):"
+echo '    set -gx OPENCODE_GO_WORKSPACE_ID "wrk_01KFRYBAA0N22SYSEG2QF1RG9R"'
+echo '    set -gx OPENCODE_GO_AUTH_COOKIE "<your-cookie>"'
+echo ""
+echo "  Get the auth cookie:"
+echo "    1. Open your OpenCode Go dashboard in a browser"
+echo "    2. DevTools -> Storage -> Cookies -> copy 'auth' cookie value"
+echo "    3. Replace <your-cookie> with the actual value"
+echo "    4. source ~/.config/fish/config.fish"
+echo "    5. Restart opencode"
 echo ""
 echo "  Repo: https://github.com/axeII/shokunin-lite"
 echo "=========================================="

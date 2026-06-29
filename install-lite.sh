@@ -11,6 +11,7 @@ echo ""
 echo "=========================================="
 echo "  Shokunin Lite v$VERSION"
 echo "  Memory + Docker, Kubernetes, Senior Engineer, Linux Triage"
+echo "  + OpenCode Quota sidebar & compact status"
 echo "=========================================="
 echo ""
 
@@ -19,7 +20,7 @@ if [ -z "${BASH_VERSION:-}" ]; then
     exit 1
 fi
 
-echo "  Prerequisites: Python 3.11+, git"
+echo "  Prerequisites: Python 3.11+, Node.js 20+, git"
 echo ""
 
 check_cmd() {
@@ -33,11 +34,14 @@ check_cmd() {
 
 ALL_OK=true
 check_cmd python3.11 || check_cmd python3 || ALL_OK=false
+check_cmd node || ALL_OK=false
+check_cmd npm || ALL_OK=false
 check_cmd git || ALL_OK=false
 
 if [ "$ALL_OK" = false ]; then
     echo ""
     echo "  Install missing requirements and re-run."
+    echo "  Node.js 20+: https://nodejs.org or 'brew install node'"
     exit 1
 fi
 
@@ -135,6 +139,7 @@ else
     cat > "$CONFIG_DIR/opencode.json" << EOF
 {
   "\$schema": "https://opencode.ai/config.json",
+  "plugin": ["@slkiser/opencode-quota"],
   "model": "opencode-go/deepseek-v4-flash",
   "mcp": {
     "memory": {
@@ -150,6 +155,46 @@ EOF
 fi
 echo "  opencode.json: configured"
 
+echo ""
+echo "  Installing OpenCode Quota plugin (sidebar + compact status)..."
+mkdir -p "$CONFIG_DIR/opencode-quota"
+if npm install -g @slkiser/opencode-quota --legacy-peer-deps >> /tmp/shokunin-lite-install.log 2>&1; then
+    echo "  @slkiser/opencode-quota: installed"
+
+    cat > "$CONFIG_DIR/tui.json" << EOF
+{
+  "\$schema": "https://opencode.ai/tui.json",
+  "plugin": ["@slkiser/opencode-quota"],
+  "theme": "catppuccin"
+}
+EOF
+    echo "  tui.json: configured"
+
+    cat > "$CONFIG_DIR/opencode-quota/quota-toast.json" << EOF
+{
+  "\$schema": "https://opencode.ai/config.json",
+  "enabledProviders": ["opencode-go"],
+  "enableToast": true,
+  "tuiSidebarPanel": {
+    "enabled": true
+  },
+  "tuiCompactStatus": {
+    "enabled": true,
+    "homeBottom": true,
+    "sessionPrompt": true
+  },
+  "maintainerAnnouncements": {
+    "enabled": true,
+    "home": true
+  },
+  "opencodeGoWindows": ["rolling", "weekly", "monthly"]
+}
+EOF
+    echo "  quota-toast.json: configured"
+else
+    echo "  WARNING: npm install @slkiser/opencode-quota failed. Check /tmp/shokunin-lite-install.log"
+fi
+
 if [ -n "${REPO_DIR:-}" ] && [ -d "$REPO_DIR" ]; then
     echo ""
     echo "  Cleanup..."
@@ -164,8 +209,28 @@ echo "=========================================="
 echo ""
 echo "  Memory: ChromaDB at $BASE_DIR/memory"
 echo "  Skills: docker, kubernetes, senior-engineer, arch-linux-triage"
+echo "  Quota: sidebar panel + compact status line (openCode Go)"
 echo ""
 echo "  Usage:"
 echo "  - $PY_CMD ~/.shokunin/scripts/chroma-helper.py search \"query\""
 echo "  - $PY_CMD ~/.shokunin/scripts/chroma-helper.py session list"
+echo "  - opencode -> Quota sidebar panel in TUI"
+echo "  - /quota slash command in opencode"
+echo ""
+echo "=========================================="
+echo "  NEXT STEPS"
+echo "=========================================="
+echo ""
+echo "  To enable OpenCode Go usage tracking, add these to your"
+echo "  Fish shell config (~/.config/fish/config.fish):"
+echo ""
+echo '    set -gx OPENCODE_GO_WORKSPACE_ID "wrk_01KFRYBAA0N22SYSEG2QF1RG9R"'
+echo '    set -gx OPENCODE_GO_AUTH_COOKIE "<your-cookie>"'
+echo ""
+echo "  Get the auth cookie:"
+echo "    1. Open your OpenCode Go dashboard in a browser"
+echo "    2. DevTools -> Storage -> Cookies -> copy 'auth' cookie value"
+echo "    3. Replace <your-cookie> with the actual value"
+echo "    4. source ~/.config/fish/config.fish"
+echo "    5. Restart opencode"
 echo ""
