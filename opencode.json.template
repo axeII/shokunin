@@ -5,6 +5,14 @@
     "memory": {
       "type": "local",
       "command": ["{{PYTHON_CMD}}", "{{MCP_MEMORY_PATH}}"]
+    },
+    "radar": {
+      "type": "remote",
+      "url": "{{RADAR_MCP_URL}}"
+    },
+    "konflate": {
+      "type": "remote",
+      "url": "{{KONFLATE_MCP_URL}}"
     }
   },
   "skills": {

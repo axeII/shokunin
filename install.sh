@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="4.2"
+VERSION="4.2-lite"
 CORES_DIR="$HOME/.shokunin"
 SKILLS_DIR="$HOME/.config/opencode/skills"
 CONFIG_DIR="$HOME/.config/opencode"
@@ -29,11 +29,13 @@ if [ -z "${BASH_VERSION:-}" ]; then
   exit 1
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 echo ""
 echo "=========================================="
-echo "  Shokunin AI Ecosystem v$VERSION"
+echo "  Shokunin AI Ecosystem v$VERSION (lite)"
 echo "  Linux Installer"
-echo "  github.com/EliasOulkadi/shokunin"
+echo "  github.com/axeII/shokunin-lite"
 echo "=========================================="
 echo ""
 echo "  Requires: bash 4+, Node.js 18+, Python 3.11+"
@@ -128,22 +130,10 @@ mkdir -p "$CORES_DIR/memory/chroma_db" "$CORES_DIR/memory/sessions" "$CORES_DIR/
 mkdir -p "$SKILLS_DIR" "$CONFIG_DIR" "$CLAUDE_DIR"
 ok
 
-# === SKILLS ===
+# === SKILLS (from skills-lite/) ===
 step_msg "Installing skills..."
-REPO_DIR="/tmp/shokunin-repo"
-if [ -d "$REPO_DIR" ]; then rm -rf "$REPO_DIR"; fi
-for retry in 1 2 3; do
-    git clone --depth 1 https://github.com/EliasOulkadi/shokunin.git "$REPO_DIR" 2>/dev/null && break
-    sleep 1
-done
-
-if [ ! -d "$REPO_DIR" ]; then
-    fail "git clone failed after 3 attempts. Check network connectivity."
-    exit 1
-fi
-
 COUNT=0
-for dir in "$REPO_DIR/.pack/skills"/*/; do
+for dir in "$SCRIPT_DIR/skills-lite"/*/; do
     if [ -f "${dir}SKILL.md" ]; then
         NAME=$(basename "$dir")
         TARGET="$SKILLS_DIR/$NAME"
@@ -156,19 +146,19 @@ log "$COUNT skills installed"
 
 # === MEMORY SYSTEM ===
 step_msg "Installing memory system..."
-cp "$REPO_DIR/.pack/memory/mcp-server.py" "$CORES_DIR/memory/mcp-server.py" 2>/dev/null || curl -sL "https://raw.githubusercontent.com/EliasOulkadi/shokunin/master/.pack/memory/mcp-server.py" -o "$CORES_DIR/memory/mcp-server.py"
-cp "$REPO_DIR/.pack/scripts/chroma-helper.py" "$CORES_DIR/scripts/chroma-helper.py" 2>/dev/null || curl -sL "https://raw.githubusercontent.com/EliasOulkadi/shokunin/master/.pack/scripts/chroma-helper.py" -o "$CORES_DIR/scripts/chroma-helper.py"
+cp "$SCRIPT_DIR/.pack/memory/mcp-server.py" "$CORES_DIR/memory/mcp-server.py" 2>/dev/null || curl -sL "https://raw.githubusercontent.com/axeII/shokunin-lite/main/.pack/memory/mcp-server.py" -o "$CORES_DIR/memory/mcp-server.py"
+cp "$SCRIPT_DIR/.pack/scripts/chroma-helper.py" "$CORES_DIR/scripts/chroma-helper.py" 2>/dev/null || curl -sL "https://raw.githubusercontent.com/axeII/shokunin-lite/main/.pack/scripts/chroma-helper.py" -o "$CORES_DIR/scripts/chroma-helper.py"
 ok
 
 # === LINUX SCRIPTS ===
 step_msg "Installing Linux scripts..."
 for script in run-opencode.sh memory-healthcheck.sh weekly-maintenance.sh profile.sh; do
-    SRC="$REPO_DIR/.pack/scripts/linux/$script"
+    SRC="$SCRIPT_DIR/.pack/scripts/linux/$script"
     if [ -f "$SRC" ]; then
         cp "$SRC" "$CORES_DIR/scripts/linux/$script"
         chmod +x "$CORES_DIR/scripts/linux/$script"
     else
-        curl -sL "https://raw.githubusercontent.com/EliasOulkadi/shokunin/master/.pack/scripts/linux/$script" -o "$CORES_DIR/scripts/linux/$script" 2>/dev/null
+        curl -sL "https://raw.githubusercontent.com/axeII/shokunin-lite/main/.pack/scripts/linux/$script" -o "$CORES_DIR/scripts/linux/$script" 2>/dev/null
         chmod +x "$CORES_DIR/scripts/linux/$script" 2>/dev/null || true
     fi
 done
@@ -176,9 +166,39 @@ log "Linux scripts installed"
 
 # === OPENCODE CONFIG ===
 step_msg "Configuring OpenCode..."
-CONFIG_SRC="$REPO_DIR/.pack/opencode.json"
+CONFIG_SRC="$SCRIPT_DIR/opencode.json.template"
 if [ -f "$CONFIG_DIR/opencode.json" ]; then
     cp "$CONFIG_DIR/opencode.json" "$CONFIG_DIR/opencode.json.shokunin-backup-$(date +%Y%m%d-%H%M%S)"
+fi
+
+# Prompt for Radar MCP URL
+RADAR_URL="${RADAR_MCP_URL:-}"
+if [ -z "$RADAR_URL" ] && [ "$NONINTERACTIVE" = false ] && [ -t 0 ]; then
+    echo ""
+    echo "  Optional: Radar MCP URL for cluster debugging"
+    echo "  Radar MCP provides live Kubernetes introspection."
+    echo "  Leave empty to skip — the skill can be configured later."
+    echo "  Example: http://localhost:49412/mcp"
+    echo ""
+    read -r -p "  Radar MCP URL (optional): " RADAR_URL
+fi
+if [ -z "$RADAR_URL" ]; then
+    RADAR_URL="http://localhost:49412/mcp"
+fi
+
+# Prompt for Konflate MCP URL
+KONFLATE_URL="${KONFLATE_MCP_URL:-}"
+if [ -z "$KONFLATE_URL" ] && [ "$NONINTERACTIVE" = false ] && [ -t 0 ]; then
+    echo ""
+    echo "  Optional: Konflate MCP URL for Flux PR diff review"
+    echo "  Konflate renders Flux PR diffs with blast radius and image changes."
+    echo "  Leave empty to skip — the skill can be configured later."
+    echo "  Example: https://konflate.example.com/mcp"
+    echo ""
+    read -r -p "  Konflate MCP URL (optional): " KONFLATE_URL
+fi
+if [ -z "$KONFLATE_URL" ]; then
+    KONFLATE_URL=""
 fi
 
 NVIDIA_KEY="${NVIDIA_API_KEY:-}"
@@ -195,12 +215,16 @@ if [ -f "$CONFIG_SRC" ]; then
     PYTHON_BIN="python3"
     command -v python3 &>/dev/null || PYTHON_BIN="python"
 
+    # Generate from template
     sed "s|{{MCP_ROOT_PATH}}|$HOME|g; \
-         s|{{PYTHON_BIN}}|$PYTHON_BIN|g; \
-         s|{{MCP_MEMORY_PATH}}|$CORES_DIR/memory/mcp-server.py|g" \
+         s|{{PYTHON_CMD}}|$PYTHON_BIN|g; \
+         s|{{MCP_MEMORY_PATH}}|$CORES_DIR/memory/mcp-server.py|g; \
+         s|{{SKILLS_PATH}}|$SKILLS_DIR|g; \
+         s|{{RADAR_MCP_URL}}|$RADAR_URL|g; \
+         s|{{KONFLATE_MCP_URL}}|$KONFLATE_URL|g" \
       "$CONFIG_SRC" > "$CONFIG_DIR/opencode.json" 2>/dev/null || cp "$CONFIG_SRC" "$CONFIG_DIR/opencode.json"
 
-    if grep -q "{{MCP_\|{{PYTHON_BIN}}" "$CONFIG_DIR/opencode.json" 2>/dev/null; then
+    if grep -q "{{MCP_\|{{PYTHON_\|{{SKILLS_\|{{RADAR_\|{{KONFLATE_" "$CONFIG_DIR/opencode.json" 2>/dev/null; then
         log "WARNING: Placeholders remain in opencode.json. Check the file."
     fi
 fi
@@ -215,9 +239,9 @@ if [ -n "$NVIDIA_KEY" ] && [ -n "$NVIDIA_PROFILE" ] && ! grep -q "NVIDIA_API_KEY
 fi
 log "Config generated"
 
-# === INSTRUCTIONS ===
+# === CLAUDE.md ===
 step_msg "Configuring global instructions..."
-CLAUDE_SRC="$REPO_DIR/.pack/CLAUDE.md"
+CLAUDE_SRC="$SCRIPT_DIR/.pack/CLAUDE.md"
 if [ -f "$CLAUDE_SRC" ]; then
     if [ -f "$CLAUDE_DIR/CLAUDE.md" ]; then
         cp "$CLAUDE_DIR/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md.shokunin-backup-$(date +%Y%m%d-%H%M%S)"
@@ -225,7 +249,7 @@ if [ -f "$CLAUDE_SRC" ]; then
     cp "$CLAUDE_SRC" "$CLAUDE_DIR/CLAUDE.md"
 fi
 
-AGENTS_SRC="$REPO_DIR/.pack/AGENTS.md"
+AGENTS_SRC="$SCRIPT_DIR/.pack/AGENTS.md"
 if [ -f "$AGENTS_SRC" ]; then
     cp "$AGENTS_SRC" "$HOME/AGENTS.md"
 fi
@@ -244,7 +268,7 @@ if [ -n "$PROFILE_FILE" ]; then
         log "Shokunin already in $PROFILE_FILE"
     else
         echo "" >> "$PROFILE_FILE"
-        echo "# Shokunin AI Ecosystem" >> "$PROFILE_FILE"
+        echo "# Shokunin AI Ecosystem (lite)" >> "$PROFILE_FILE"
         echo "source \$HOME/.shokunin/scripts/linux/profile.sh" >> "$PROFILE_FILE"
         log "Added to $PROFILE_FILE"
     fi
@@ -271,13 +295,10 @@ if [ -f "$CORES_DIR/scripts/linux/memory-healthcheck.sh" ]; then
   bash "$CORES_DIR/scripts/linux/memory-healthcheck.sh" && ok || fail "Some checks failed"
 fi
 
-# === CLEANUP ===
-rm -rf "$REPO_DIR"
-
 # === SUMMARY ===
 echo ""
 echo "=========================================="
-echo "  Shokunin AI Ecosystem - Installed"
+echo "  Shokunin AI Ecosystem (lite) - Installed"
 echo "=========================================="
 echo ""
 echo "  Skills: $COUNT installed"
@@ -285,10 +306,17 @@ echo "  Memory: ChromaDB in $CORES_DIR/memory"
 echo "  Shell: source ~/.shokunin/scripts/linux/profile.sh"
 echo "  Crontab: Sunday 21:00 (backup + cleanup)"
 echo ""
+if [ -n "$RADAR_URL" ] && [ "$RADAR_URL" != "http://localhost:49412/mcp" ]; then
+    echo "  Radar MCP: $RADAR_URL"
+fi
+if [ -n "$KONFLATE_URL" ]; then
+    echo "  Konflate MCP: $KONFLATE_URL"
+fi
+echo ""
 echo "  NEXT STEPS:"
 echo "  1. Reload your shell: source ~/.bashrc"
 echo "  2. Start coding: opencode"
 echo "  3. Test memory: ~/.shokunin/scripts/linux/memory-healthcheck.sh"
 echo ""
-echo "  Repo: https://github.com/EliasOulkadi/shokunin"
+echo "  Repo: https://github.com/axeII/shokunin-lite"
 echo "=========================================="
